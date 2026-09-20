@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tikvah Child Care Center</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ============ LOGIN ============ -->
+    <section id="login-page" class="login-page">
+        <div class="login-box">
+            <div class="logo-area">
+                <img src="tikvah-logo.jpg" alt="Tikvah Child Care Center Logo">
+            </div>
+            <h1>Welcome Back</h1>
+            <p>Admin Management System</p>
+            <form id="login-form">
+                <label>Username</label>
+                <input type="text" id="login-username" placeholder="Enter username" autocomplete="username">
+                <label>Password</label>
+                <input type="password" id="login-password" placeholder="Enter password" autocomplete="current-password">
+                <button type="submit" class="primary-btn">Login</button>
+            </form>
+            <p class="login-hint">Enter any username and password to continue.</p>
+        </div>
+    </section>
+
+    <!-- ============ APP ============ -->
+    <section id="app" class="app" style="display:none">
+
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <img src="tikvah-logo.jpg" alt="Tikvah Logo">
+                <h2>Tikvah</h2>
+                <span>Child Care Center</span>
+            </div>
+            <nav>
+                <button class="nav-item active" data-page="dashboard"><span>🏠</span>Dashboard</button>
+                <button class="nav-item" data-page="children"><span>👶</span>Children</button>
+                <button class="nav-item" data-page="attendance"><span>🕐</span>Attendance</button>
+                <button class="nav-item" data-page="payments"><span>💰</span>Payments</button>
+                <button class="nav-item" data-page="reports"><span>📊</span>Reports</button>
+                <button class="nav-item" data-page="settings"><span>⚙️</span>Settings</button>
+            </nav>
+            <div class="sidebar-bottom">
+                <p>Admin</p>
+                <span>Administrator</span>
+                <button id="logout-btn" class="logout-btn">🚪 Logout</button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+
+            <header class="topbar">
+                <div>
+                    <h1 id="page-title">Dashboard</h1>
+                    <p id="page-subtitle">Welcome to Tikvah Child Care Center</p>
+                </div>
+                <div class="admin-profile">
+                    <div class="avatar">A</div>
+                    <div><strong>Admin</strong><small>Administrator</small></div>
+                </div>
+            </header>
+
+            <!-- ======== DASHBOARD ======== -->
+            <section class="page-section" data-page-section="dashboard">
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="stat-icon">👶</div><div><span>Total Children</span><h2 id="stat-total">0</h2></div></div>
+                    <div class="stat-card"><div class="stat-icon">🟢</div><div><span>Children IN</span><h2 id="stat-in">0</h2></div></div>
+                    <div class="stat-card"><div class="stat-icon">🔴</div><div><span>Children OUT</span><h2 id="stat-out">0</h2></div></div>
+                    <div class="stat-card"><div class="stat-icon">💰</div><div><span>Pending Fees</span><h2 id="stat-pending">KSh 0</h2></div></div>
+                </div>
+
+                <section class="section">
+                    <div class="section-header"><div><h2>Quick Actions</h2><p>Common tasks for the administrator</p></div></div>
+                    <div class="quick-actions">
+                        <button class="action-card" data-goto="children"><span>👶</span><strong>Manage Children</strong><small>View and manage child profiles</small></button>
+                        <button class="action-card" data-goto="attendance"><span>🕐</span><strong>Attendance</strong><small>Check children IN or OUT</small></button>
+                        <button class="action-card" data-goto="payments"><span>💳</span><strong>Payments</strong><small>Manage fees and payments</small></button>
+                        <button class="action-card" data-goto="reports"><span>📊</span><strong>Reports</strong><small>View center reports</small></button>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <div class="section-header"><div><h2>Today's Activity</h2><p>Latest check-ins and check-outs</p></div></div>
+                    <div id="dashboard-today" class="activity-list"></div>
+                </section>
+            </section>
+
+            <!-- ======== CHILDREN ======== -->
+            <section class="page-section" data-page-section="children" style="display:none">
+                <section class="section">
+                    <div class="section-header">
+                        <div><h2>Children</h2><p>Select a child to view their information</p></div>
+                        <button class="primary-btn" id="add-child-btn">+ Add Child</button>
+                    </div>
+                    <div class="children-grid" id="children-grid"></div>
+                </section>
+            </section>
+
+            <!-- ======== CHILD PROFILE ======== -->
+            <section class="page-section" data-page-section="profile" style="display:none">
+                <section class="section">
+                    <button class="link-btn" id="back-to-children">← Back to Children</button>
+                    <div id="profile-content"></div>
+                </section>
+            </section>
+
+            <!-- ======== ATTENDANCE ======== -->
+            <section class="page-section" data-page-section="attendance" style="display:none">
+                <section class="section">
+                    <div class="section-header"><div><h2>Attendance</h2><p>Tap a button to check a child IN or OUT</p></div></div>
+                    <div id="attendance-list" class="attendance-list"></div>
+                </section>
+                <section class="section">
+                    <div class="section-header"><div><h2>Today's Log</h2><p>All movements recorded today</p></div></div>
+                    <div id="attendance-log" class="activity-list"></div>
+                </section>
+            </section>
+
+            <!-- ======== PAYMENTS ======== -->
+            <section class="page-section" data-page-section="payments" style="display:none">
+                <section class="section">
+                    <div class="section-header"><div><h2>Payments</h2><p>Fees are KSh <span id="daily-fee-label">100</span> per day attended, plus any extra charges</p></div></div>
+                    <div class="payment-grid">
+                        <div class="payment-card"><span>Total Billed</span><h2 id="pay-billed">KSh 0</h2></div>
+                        <div class="payment-card"><span>Total Collected</span><h2 id="pay-collected">KSh 0</h2></div>
+                        <div class="payment-card"><span>Pending</span><h2 id="pay-pending">KSh 0</h2></div>
+                    </div>
+                </section>
+                <section class="section">
+                    <div class="section-header"><div><h2>Balances</h2><p>Record payments or add extra charges per child</p></div></div>
+                    <div class="table-wrap">
+                        <table id="payments-table">
+                            <thead>
+                                <tr><th>Child</th><th>Days Attended</th><th>Billed</th><th>Paid</th><th>Balance</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+
+            <!-- ======== REPORTS ======== -->
+            <section class="page-section" data-page-section="reports" style="display:none">
+                <section class="section">
+                    <div class="section-header"><div><h2>Reports</h2><p>Tap a report to generate it, then print or save as PDF</p></div></div>
+                    <div class="reports-grid">
+                        <button class="report-card" data-report="attendance">📋<strong>Attendance Report</strong><small>View daily attendance</small></button>
+                        <button class="report-card" data-report="payments">💰<strong>Payment Report</strong><small>View fee payments</small></button>
+                        <button class="report-card" data-report="children">👶<strong>Children Report</strong><small>View registered children</small></button>
+                    </div>
+                </section>
+                <section class="section" id="report-section" style="display:none">
+                    <div class="section-header">
+                        <div><h2 id="report-title">Report</h2><p id="report-subtitle"></p></div>
+                        <button class="primary-btn" id="print-report-btn">🖨️ Print / Save as PDF</button>
+                    </div>
+                    <div id="report-output"></div>
+                </section>
+            </section>
+
+            <!-- ======== SETTINGS ======== -->
+            <section class="page-section" data-page-section="settings" style="display:none">
+                <section class="section">
+                    <div class="section-header"><div><h2>Settings</h2><p>Configure the center and manage your data</p></div></div>
+                    <div class="settings-grid">
+                        <div class="settings-card">
+                            <h3>Daily Fee</h3>
+                            <p class="settings-desc">Fee charged for each day a child is checked IN.</p>
+                            <div class="settings-row">
+                                <input type="number" id="daily-fee-input" min="0" step="1">
+                                <button class="primary-btn" id="save-fee-btn">Save</button>
+                            </div>
+                        </div>
+                        <div class="settings-card">
+                            <h3>Backup Data</h3>
+                            <p class="settings-desc">Download all children, payments and attendance records as a file. Keep it safe!</p>
+                            <button class="secondary-btn" id="export-btn">⬇️ Download Backup</button>
+                            <label class="secondary-btn file-label">⬆️ Restore Backup<input type="file" id="import-input" accept=".json" hidden></label>
+                        </div>
+                        <div class="settings-card danger">
+                            <h3>Danger Zone</h3>
+                            <p class="settings-desc">Permanently delete ALL data (children, payments, attendance). This cannot be undone.</p>
+                            <button class="danger-btn" id="clear-data-btn">🗑️ Clear All Data</button>
+                        </div>
+                    </div>
+                </section>
+            </section>
+
+            <footer>© <span id="year"></span> Tikvah Child Care Center</footer>
+        </main>
+    </section>
+
+    <!-- ============ MODAL ============ -->
+    <div class="modal-overlay" id="modal-overlay" style="display:none">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title">Modal</h3>
+                <button id="modal-close" class="modal-close">✕</button>
+            </div>
+            <form id="modal-form">
+                <div class="modal-body" id="modal-body"></div>
+                <div class="modal-footer">
+                    <button type="button" class="secondary-btn" id="modal-cancel">Cancel</button>
+                    <button type="submit" class="primary-btn" id="modal-save">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
