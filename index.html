@@ -131,7 +131,7 @@
             <!-- ======== PAYMENTS ======== -->
             <section class="page-section" data-page-section="payments" style="display:none">
                 <section class="section">
-                    <div class="section-header"><div><h2>Payments</h2><p>Fees are KSh <span id="daily-fee-label">100</span> per day attended, plus any extra charges</p></div></div>
+                    <div class="section-header"><div><h2>Payments</h2><p>Billing defaults: <span id="fee-summary-label"></span> &mdash; change them in Settings</p></div></div>
                     <div class="payment-grid">
                         <div class="payment-card"><span>Total Billed</span><h2 id="pay-billed">KSh 0</h2></div>
                         <div class="payment-card"><span>Total Collected</span><h2 id="pay-collected">KSh 0</h2></div>
@@ -143,7 +143,7 @@
                     <div class="table-wrap">
                         <table id="payments-table">
                             <thead>
-                                <tr><th>Child</th><th>Days Attended</th><th>Billed</th><th>Paid</th><th>Balance</th><th>Actions</th></tr>
+                                <tr><th>Child</th><th>Periods Billed</th><th>Billed</th><th>Paid</th><th>Balance</th><th>Actions</th></tr>
                             </thead>
                             <tbody></tbody>
                         </table>
@@ -176,12 +176,15 @@
                     <div class="section-header"><div><h2>Settings</h2><p>Configure the center and manage your data</p></div></div>
                     <div class="settings-grid">
                         <div class="settings-card">
-                            <h3>Daily Fee</h3>
-                            <p class="settings-desc">Fee charged for each day a child is checked IN.</p>
-                            <div class="settings-row">
-                                <input type="number" id="daily-fee-input" min="0" step="1">
-                                <button class="primary-btn" id="save-fee-btn">Save</button>
-                            </div>
+                            <h3>Billing Defaults</h3>
+                            <p class="settings-desc">Default rates used when registering children. You can set a custom rate per child when editing them.</p>
+                            <label class="fee-label">Daily (per day attended)</label>
+                            <div class="settings-row"><input type="number" id="daily-fee-input" min="0" step="1"></div>
+                            <label class="fee-label">Weekly</label>
+                            <div class="settings-row"><input type="number" id="weekly-fee-input" min="0" step="1"></div>
+                            <label class="fee-label">Monthly</label>
+                            <div class="settings-row"><input type="number" id="monthly-fee-input" min="0" step="1"></div>
+                            <div class="settings-row" style="margin-top:12px"><button class="primary-btn" id="save-fee-btn" style="width:100%">Save</button></div>
                         </div>
                         <div class="settings-card">
                             <h3>Backup Data</h3>

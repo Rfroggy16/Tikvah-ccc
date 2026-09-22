@@ -645,3 +645,6 @@ footer { text-align: center; color: #888; font-size: 12px; padding: 30px; }
     }
     #report-output table { font-size: 12px; }
 }
+
+.fee-label { display: block; font-size: 12px; font-weight: bold; color: #555; margin-top: 14px; margin-bottom: 5px; }
+.settings-row { flex-wrap: wrap; }

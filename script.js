@@ -1,7 +1,6 @@
 /* =========================================================
-   TIKVAH CHILD CARE CENTER - V3
-   Everything is wired up: attendance, payments, reports,
-   settings, edit/delete children, backup & restore.
+   TIKVAH CHILD CARE CENTER - V4
+   Billing plans: DAILY (per day attended), WEEKLY, MONTHLY
 ========================================================= */
 
 "use strict";
@@ -18,7 +17,7 @@ function defaultState() {
         payments: [],
         attendance: [],
         charges: [],
-        settings: { dailyFee: 100 }
+        settings: { dailyFee: 100, weeklyFee: 700, monthlyFee: 3000 }
     };
 }
 
@@ -53,7 +52,6 @@ function migrateOldData() {
         state.attendance = JSON.parse(localStorage.getItem("tikvah_attendance") || "[]");
         state.charges = JSON.parse(localStorage.getItem("tikvah_additional_charges") || "[]");
         saveState();
-        console.log("Imported data from the old version.");
     } catch (err) {
         console.error("Migration failed:", err);
     }
@@ -87,29 +85,54 @@ function formatKES(amount) {
 }
 
 function formatTime(isoString) {
-    const d = new Date(isoString);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(isoString).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDate(isoString) {
-    const d = new Date(isoString);
-    return d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+    return new Date(isoString).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
 }
 
 function todayKey() {
     return new Date().toISOString().substring(0, 10);
 }
 
-function photoHTML(child, big) {
-    if (child && child.photo) {
-        return '<img src="' + child.photo + '" alt="">';
-    }
-    return big ? "👶" : "👶";
+function todayDateInput() {
+    const d = new Date();
+    return d.getFullYear() + "-" +
+        String(d.getMonth() + 1).padStart(2, "0") + "-" +
+        String(d.getDate()).padStart(2, "0");
+}
+
+function photoHTML(child) {
+    return child && child.photo ? '<img src="' + child.photo + '" alt="">' : "👶";
 }
 
 /* =========================================================
-   FEES
+   BILLING PLANS
 ========================================================= */
+
+function planOf(child) {
+    return child.billingPlan || "daily";
+}
+
+function planLabel(child) {
+    const plan = planOf(child);
+    return plan === "weekly" ? "Weekly" : plan === "monthly" ? "Monthly" : "Daily";
+}
+
+function defaultRateFor(plan) {
+    const s = state.settings;
+    if (plan === "weekly") return s.weeklyFee;
+    if (plan === "monthly") return s.monthlyFee;
+    return s.dailyFee;
+}
+
+function rateOf(child) {
+    if (child.planRate != null && child.planRate !== "" && !isNaN(Number(child.planRate))) {
+        return Number(child.planRate);
+    }
+    return defaultRateFor(planOf(child));
+}
 
 function daysAttended(childId) {
     const keys = new Set(
@@ -120,11 +143,46 @@ function daysAttended(childId) {
     return keys.size;
 }
 
+/* How many periods this child has been billed for */
+function periodsBilled(child) {
+    const plan = planOf(child);
+
+    if (plan === "daily") {
+        return daysAttended(child.id);
+    }
+
+    const start = new Date(child.billingStart || child.registeredAt || Date.now());
+    const now = new Date();
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (plan === "weekly") {
+        const diffDays = Math.floor((nowDay - startDay) / 86400000);
+        return Math.max(1, Math.floor(diffDays / 7) + 1);
+    }
+
+    // monthly: every calendar month touched from the start month counts
+    const months = (nowDay.getFullYear() - startDay.getFullYear()) * 12 +
+        (nowDay.getMonth() - startDay.getMonth()) + 1;
+    return Math.max(1, months);
+}
+
+function periodLabel(child) {
+    const n = periodsBilled(child);
+    const plan = planOf(child);
+    if (plan === "weekly") return n + (n === 1 ? " week" : " weeks");
+    if (plan === "monthly") return n + (n === 1 ? " month" : " months");
+    return n + (n === 1 ? " day" : " days");
+}
+
 function childFee(childId) {
-    return daysAttended(childId) * state.settings.dailyFee +
-        state.charges
-            .filter(c => c.childId === childId)
-            .reduce((sum, c) => sum + Number(c.amount), 0);
+    const child = state.children.find(c => c.id === childId);
+    if (!child) return 0;
+    const base = periodsBilled(child) * rateOf(child);
+    const extras = state.charges
+        .filter(c => c.childId === childId)
+        .reduce((sum, c) => sum + Number(c.amount), 0);
+    return base + extras;
 }
 
 function childPaid(childId) {
@@ -185,7 +243,7 @@ document.querySelectorAll("[data-goto]").forEach(btn => {
 });
 
 /* =========================================================
-   MODAL (replaces the old prompt pop-ups)
+   MODAL
 ========================================================= */
 
 let modalSaveHandler = null;
@@ -214,20 +272,25 @@ $("#modal-overlay").addEventListener("click", e => {
 $("#modal-form").addEventListener("submit", e => {
     e.preventDefault();
     if (!modalSaveHandler) return;
-    const data = {};
-    $("#modal-body").querySelectorAll("[data-field]").forEach(field => {
-        data[field.getAttribute("data-field")] = field.value.trim();
-    });
+    const data = readForm();
     const ok = modalSaveHandler(data);
     if (ok !== false) closeModal();
 });
 
+function readForm() {
+    const data = {};
+    $("#modal-body").querySelectorAll("[data-field]").forEach(f => {
+        data[f.getAttribute("data-field")] = f.value.trim();
+    });
+    return data;
+}
+
 function fieldHTML(key, label, type, value, extra) {
     if (type === "select") {
         const options = (extra || [])
-            .map(o => '<option value="' + escapeHTML(o) + '"' +
-                (String(o) === String(value) ? " selected" : "") + ">" +
-                escapeHTML(o) + "</option>")
+            .map(o => '<option value="' + escapeHTML(o.value || o) + '"' +
+                (String(o.value || o) === String(value) ? " selected" : "") + ">" +
+                escapeHTML(o.label || o) + "</option>")
             .join("");
         return '<label>' + escapeHTML(label) + '</label>' +
             '<select data-field="' + key + '">' + options + "</select>";
@@ -243,9 +306,7 @@ function fieldHTML(key, label, type, value, extra) {
 
 $("#login-form").addEventListener("submit", e => {
     e.preventDefault();
-    const username = $("#login-username").value.trim();
-    const password = $("#login-password").value.trim();
-    if (!username || !password) {
+    if (!$("#login-username").value.trim() || !$("#login-password").value.trim()) {
         alert("Please enter your username and password.");
         return;
     }
@@ -274,11 +335,23 @@ let selectedChildId = null;
 
 function childFormHTML(child) {
     child = child || {};
+    const plan = child.billingPlan || "daily";
+    const startVal = (child.billingStart || child.registeredAt || todayDateInput()).substring(0, 10);
     return (
-        fieldHTML("name", "Child's Full Name", "text", child.name, ' required') +
+        fieldHTML("name", "Child's Full Name", "text", child.name, " required") +
         fieldHTML("age", "Age (years)", "number", child.age, ' min="0" max="18" required') +
         fieldHTML("className", "Class", "select", child.className || "Daycare",
             ["Daycare", "Baby Class", "Middle Class", "Pre-Unit"]) +
+        fieldHTML("billingPlan", "Billing Plan", "select", plan, [
+            { value: "daily", label: "Daily (pay per day attended)" },
+            { value: "weekly", label: "Weekly (fixed amount per week)" },
+            { value: "monthly", label: "Monthly (fixed amount per month)" }
+        ]) +
+        fieldHTML("planRate", "Rate per Period (KSh)", "number",
+            child.planRate != null ? child.planRate : defaultRateFor(plan),
+            ' min="0" required') +
+        '<p class="field-hint" id="plan-hint">Leave the rate as-is to use the default from Settings.</p>' +
+        fieldHTML("billingStart", "Billing Starts", "date", startVal) +
         fieldHTML("parent", "Parent / Guardian Name", "text", child.parent, " required") +
         fieldHTML("phone", "Parent / Guardian Phone", "tel", child.phone, " required") +
         fieldHTML("allergies", "Allergies / Medical Info", "text", child.allergies || "None") +
@@ -288,14 +361,28 @@ function childFormHTML(child) {
     );
 }
 
+/* When the plan changes in the form, auto-fill the default rate */
+function hookPlanRateAutoFill() {
+    const planSel = $('[data-field="billingPlan"]');
+    const rateInput = $('[data-field="planRate"]');
+    const hint = $("#plan-hint");
+    if (!planSel || !rateInput) return;
+    planSel.addEventListener("change", () => {
+        const def = defaultRateFor(planSel.value);
+        rateInput.value = def;
+        if (hint) {
+            hint.textContent = "Default for this plan: " + formatKES(def) +
+                " per " + (planSel.value === "daily" ? "day attended" : planSel.value === "weekly" ? "week" : "month") + ".";
+        }
+    });
+}
+
 function readPhotoInput() {
     return new Promise(resolve => {
         const input = $("#child-photo-input");
         if (!input || !input.files || !input.files[0]) return resolve(null);
-        const file = input.files[0];
         const reader = new FileReader();
         reader.onload = () => {
-            // Downscale so photos do not fill up storage
             const img = new Image();
             img.onload = () => {
                 const max = 300;
@@ -310,14 +397,25 @@ function readPhotoInput() {
             img.src = reader.result;
         };
         reader.onerror = () => resolve(null);
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(input.files[0]);
     });
 }
 
-$("#add-child-btn").addEventListener("click", () => {
-    openModal("Register New Child", childFormHTML(), (data, savedByPhoto) => {}, "Register");
+function validateChild(data) {
+    if (!data.name || !data.age || !data.parent || !data.phone) {
+        alert("Please fill in all required fields.");
+        return false;
+    }
+    if (data.planRate === "" || isNaN(Number(data.planRate)) || Number(data.planRate) < 0) {
+        alert("Please enter a valid rate per period.");
+        return false;
+    }
+    return true;
+}
 
-    // Handle photo + save manually since photo reading is async
+$("#add-child-btn").addEventListener("click", () => {
+    openModal("Register New Child", childFormHTML(), null, "Register");
+    hookPlanRateAutoFill();
     modalSaveHandler = null;
     $("#modal-form").onsubmit = async e => {
         e.preventDefault();
@@ -329,6 +427,10 @@ $("#add-child-btn").addEventListener("click", () => {
             name: data.name,
             age: data.age,
             className: data.className,
+            billingPlan: data.billingPlan,
+            planRate: Number(data.planRate),
+            billingStart: data.billingStart || todayDateInput(),
+            registeredAt: new Date().toISOString(),
             parent: data.parent,
             phone: data.phone,
             allergies: data.allergies || "None",
@@ -338,30 +440,15 @@ $("#add-child-btn").addEventListener("click", () => {
         saveState();
         renderAll();
         closeModal();
-        alert(data.name + " has been registered.");
+        alert(data.name + " has been registered (" + planLabel(state.children[state.children.length - 1]) + " plan).");
     };
 });
-
-function readForm() {
-    const data = {};
-    $("#modal-body").querySelectorAll("[data-field]").forEach(f => {
-        data[f.getAttribute("data-field")] = f.value.trim();
-    });
-    return data;
-}
-
-function validateChild(data) {
-    if (!data.name || !data.age || !data.parent || !data.phone) {
-        alert("Please fill in all required fields.");
-        return false;
-    }
-    return true;
-}
 
 function editChild(id) {
     const child = state.children.find(c => c.id === id);
     if (!child) return;
     openModal("Edit Child", childFormHTML(child), null, "Save Changes");
+    hookPlanRateAutoFill();
     modalSaveHandler = null;
     $("#modal-form").onsubmit = async e => {
         e.preventDefault();
@@ -371,6 +458,9 @@ function editChild(id) {
         child.name = data.name;
         child.age = data.age;
         child.className = data.className;
+        child.billingPlan = data.billingPlan;
+        child.planRate = Number(data.planRate);
+        child.billingStart = data.billingStart || child.billingStart;
         child.parent = data.parent;
         child.phone = data.phone;
         child.allergies = data.allergies || "None";
@@ -442,7 +532,7 @@ function renderProfile() {
     box.innerHTML = `
         <div class="profile-layout">
             <div class="profile-card">
-                <div class="large-child-photo">${photoHTML(child, true)}</div>
+                <div class="large-child-photo">${photoHTML(child)}</div>
                 <h2>${escapeHTML(child.name)}</h2>
                 <span class="status ${isIn ? "in" : "out"}">● Currently ${child.status}</span>
                 <div class="profile-actions">
@@ -465,9 +555,11 @@ function renderProfile() {
                         <div><label>Parent / Guardian</label><p>${escapeHTML(child.parent)}</p></div>
                         <div><label>Phone</label><p>${escapeHTML(child.phone)}</p></div>
                         <div><label>Allergies</label><p>${escapeHTML(child.allergies || "None")}</p></div>
+                        <div><label>Billing Plan</label><p>${planLabel(child)} &bull; ${formatKES(rateOf(child))} per ${planOf(child) === "daily" ? "day" : planOf(child) === "weekly" ? "week" : "month"}</p></div>
+                        <div><label>Billing Since</label><p>${formatDate(child.billingStart || child.registeredAt || Date.now())}</p></div>
                     </div>
                     <div class="fee-summary">
-                        <div><span>Days Attended</span><strong>${daysAttended(child.id)}</strong></div>
+                        <div><span>Periods Billed</span><strong>${periodLabel(child)}</strong></div>
                         <div><span>Total Billed</span><strong>${formatKES(fee)}</strong></div>
                         <div><span>Total Paid</span><strong>${formatKES(paid)}</strong></div>
                         <div><span>Balance</span><strong class="${balance > 0 ? "" : "negative"}">${formatKES(Math.max(0, balance))}${balance < 0 ? " (overpaid)" : ""}</strong></div>
@@ -496,10 +588,10 @@ function renderHistory(childId) {
     const events = [
         ...state.payments
             .filter(p => p.childId === childId)
-            .map(p => ({ date: p.date, text: "Payment of " + formatKES(p.amount) + (p.method ? " (" + p.method + ")" : ""), kind: "pay" })),
+            .map(p => ({ date: p.date, text: "Payment of " + formatKES(p.amount) + (p.method ? " (" + p.method + ")" : "") })),
         ...state.charges
             .filter(c => c.childId === childId)
-            .map(c => ({ date: c.date, text: "Extra charge: " + c.description + " (" + formatKES(c.amount) + ")", kind: "charge" }))
+            .map(c => ({ date: c.date, text: "Extra charge: " + c.description + " (" + formatKES(c.amount) + ")" }))
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (!events.length) {
@@ -525,7 +617,6 @@ function toggleAttendance(id) {
     if (!child) return;
 
     const now = new Date().toISOString();
-
     if (child.status === "IN") {
         child.status = "OUT";
         state.attendance.push({ childId: id, childName: child.name, type: "OUT", date: now });
@@ -649,10 +740,15 @@ function addCharge(childId) {
 }
 
 function renderPaymentsPage() {
-    $("#daily-fee-label").textContent = state.settings.dailyFee;
+    const s = state.settings;
+    const label = $("#fee-summary-label");
+    if (label) {
+        label.textContent = "Daily " + formatKES(s.dailyFee) + "/day • Weekly " +
+            formatKES(s.weeklyFee) + " • Monthly " + formatKES(s.monthlyFee);
+    }
 
-    const billed = state.children.reduce((s, c) => s + childFee(c.id), 0);
-    const collected = state.payments.reduce((s, p) => s + Number(p.amount), 0);
+    const billed = state.children.reduce((sum, c) => sum + childFee(c.id), 0);
+    const collected = state.payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
     $("#pay-billed").textContent = formatKES(billed);
     $("#pay-collected").textContent = formatKES(collected);
@@ -670,8 +766,8 @@ function renderPaymentsPage() {
         const balance = fee - paid;
         return `
         <tr>
-            <td><strong>${escapeHTML(child.name)}</strong></td>
-            <td>${daysAttended(child.id)}</td>
+            <td><strong>${escapeHTML(child.name)}</strong><br><small style="color:#888">${planLabel(child)} &bull; ${formatKES(rateOf(child))}</small></td>
+            <td>${periodLabel(child)}</td>
             <td>${formatKES(fee)}</td>
             <td>${formatKES(paid)}</td>
             <td class="${balance > 0 ? "balance-due" : "balance-ok"}">${balance > 0 ? formatKES(balance) : "✓ Clear"}</td>
@@ -712,8 +808,8 @@ function generateReport(type) {
         const records = [...state.attendance]
             .sort((a, b) => new Date(b.date) - new Date(a.date))
             .slice(0, 200);
-
         const ins = state.children.filter(c => c.status === "IN").length;
+
         body = "<h4>Summary</h4>" +
             "<p>Children currently IN: <strong>" + ins + "</strong> &nbsp; OUT: <strong>" +
             (state.children.length - ins) + "</strong></p>" +
@@ -727,8 +823,7 @@ function generateReport(type) {
     if (type === "payments") {
         title = "Payment Report";
         subtitle = "Generated " + now.toLocaleString();
-        const payments = [...state.payments]
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        const payments = [...state.payments].sort((a, b) => new Date(b.date) - new Date(a.date));
         const total = payments.reduce((s, p) => s + Number(p.amount), 0);
         const pending = totalPending();
 
@@ -744,13 +839,14 @@ function generateReport(type) {
 
     if (type === "children") {
         title = "Children Report";
-        subtitle = "Generated " + now.toLocaleString() + " &nbsp;•&nbsp; " +
+        subtitle = "Generated " + now.toLocaleString() + " • " +
             state.children.length + " children registered";
         body = state.children.length ? tableHTML(
-            ["Name", "Age", "Class", "Parent / Guardian", "Phone", "Allergies", "Status"],
+            ["Name", "Age", "Class", "Plan", "Parent / Guardian", "Phone", "Allergies", "Status"],
             state.children.map(c => [
-                c.name, String(c.age), c.className || "-", c.parent || "-",
-                c.phone || "-", c.allergies || "None", c.status
+                c.name, String(c.age), c.className || "-",
+                planLabel(c) + " (" + formatKES(rateOf(c)) + ")",
+                c.parent || "-", c.phone || "-", c.allergies || "None", c.status
             ])
         ) : "<p>No children registered yet.</p>";
     }
@@ -778,18 +874,24 @@ $("#print-report-btn").addEventListener("click", () => window.print());
 
 function renderSettings() {
     $("#daily-fee-input").value = state.settings.dailyFee;
+    $("#weekly-fee-input").value = state.settings.weeklyFee;
+    $("#monthly-fee-input").value = state.settings.monthlyFee;
 }
 
 $("#save-fee-btn").addEventListener("click", () => {
-    const value = Number($("#daily-fee-input").value);
-    if (isNaN(value) || value < 0) {
-        alert("Please enter a valid fee.");
+    const daily = Number($("#daily-fee-input").value);
+    const weekly = Number($("#weekly-fee-input").value);
+    const monthly = Number($("#monthly-fee-input").value);
+    if ([daily, weekly, monthly].some(v => isNaN(v) || v < 0)) {
+        alert("Please enter valid amounts (0 or more).");
         return;
     }
-    state.settings.dailyFee = value;
+    state.settings.dailyFee = daily;
+    state.settings.weeklyFee = weekly;
+    state.settings.monthlyFee = monthly;
     saveState();
     renderAll();
-    alert("Daily fee updated to " + formatKES(value) + ".");
+    alert("Default fees updated.");
 });
 
 $("#export-btn").addEventListener("click", () => {
@@ -864,7 +966,6 @@ function renderAll() {
 document.addEventListener("DOMContentLoaded", () => {
     migrateOldData();
     $("#year").textContent = new Date().getFullYear();
-
     if (sessionStorage.getItem("tikvah_logged_in") === "yes") {
         enterApp();
     }
