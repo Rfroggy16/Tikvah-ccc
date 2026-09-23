@@ -119,7 +119,10 @@
             <!-- ======== ATTENDANCE ======== -->
             <section class="page-section" data-page-section="attendance" style="display:none">
                 <section class="section">
-                    <div class="section-header"><div><h2>Attendance</h2><p>Tap a button to check a child IN or OUT</p></div></div>
+                    <div class="section-header">
+                        <div><h2>Attendance</h2><p>Tap a button to check a child IN or OUT</p></div>
+                        <button class="secondary-btn" id="end-day-btn">🌙 End of Day</button>
+                    </div>
                     <div id="attendance-list" class="attendance-list"></div>
                 </section>
                 <section class="section">
@@ -131,7 +134,10 @@
             <!-- ======== PAYMENTS ======== -->
             <section class="page-section" data-page-section="payments" style="display:none">
                 <section class="section">
-                    <div class="section-header"><div><h2>Payments</h2><p>Billing defaults: <span id="fee-summary-label"></span> &mdash; change them in Settings</p></div></div>
+                    <div class="section-header">
+                        <div><h2>Payments</h2><p>Billing defaults: <span id="fee-summary-label"></span> &mdash; change them in Settings</p></div>
+                        <button class="secondary-btn" id="mpesa-pay-btn">📱 Record M-Pesa Payment</button>
+                    </div>
                     <div class="payment-grid">
                         <div class="payment-card"><span>Total Billed</span><h2 id="pay-billed">KSh 0</h2></div>
                         <div class="payment-card"><span>Total Collected</span><h2 id="pay-collected">KSh 0</h2></div>

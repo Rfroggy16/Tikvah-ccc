@@ -648,3 +648,15 @@ footer { text-align: center; color: #888; font-size: 12px; padding: 30px; }
 
 .fee-label { display: block; font-size: 12px; font-weight: bold; color: #555; margin-top: 14px; margin-bottom: 5px; }
 .settings-row { flex-wrap: wrap; }
+
+.modal-body textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    border-radius: 9px;
+    outline: none;
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+}
+.modal-body textarea:focus { border-color: #4f46e5; }

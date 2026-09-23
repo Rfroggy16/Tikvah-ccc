@@ -790,6 +790,122 @@ function renderPaymentsPage() {
 }
 
 /* =========================================================
+   END OF DAY (busy-proofing: one tap checks everyone OUT)
+========================================================= */
+
+$("#end-day-btn").addEventListener("click", () => {
+    const inside = state.children.filter(c => c.status === "IN");
+    if (!inside.length) {
+        alert("Everyone is already checked OUT.");
+        return;
+    }
+    if (!confirm("Check OUT all " + inside.length + " children at once? Use this at closing time.")) return;
+    const now = new Date().toISOString();
+    inside.forEach(child => {
+        child.status = "OUT";
+        state.attendance.push({ childId: child.id, childName: child.name, type: "OUT", date: now });
+    });
+    saveState();
+    renderAll();
+    alert("All " + inside.length + " children checked OUT. See you tomorrow!");
+});
+
+/* =========================================================
+   M-PESA: paste a confirmation SMS, system reads it
+========================================================= */
+
+function parseMpesaMessage(text) {
+    const result = { amount: null, phone: null, name: null };
+    const amt = text.match(/Ksh\s?([\d,]+(?:\.\d{1,2})?)/i);
+    if (amt) result.amount = parseFloat(amt[1].replace(/,/g, ""));
+    const ph = text.match(/(?:^|\D)(2547\d{8}|07\d{8})(?:\D|$)/);
+    if (ph) result.phone = ph[1];
+    const nm = text.match(/from\s+([A-Za-z][A-Za-z .']*?)\s+(?:2547\d{8}|07\d{8})/i);
+    if (nm) result.name = nm[1].trim();
+    return result;
+}
+
+function normalizePhone(p) {
+    let d = String(p || "").replace(/\D/g, "");
+    if (d.startsWith("254")) d = d.substring(3);
+    else if (d.startsWith("0")) d = d.substring(1);
+    return d;
+}
+
+function findChildByPhone(phone) {
+    const n = normalizePhone(phone);
+    if (n.length < 9) return null;
+    return state.children.find(c => normalizePhone(c.phone) === n) || null;
+}
+
+function openMpesaPayment() {
+    if (!state.children.length) {
+        alert("Register a child first.");
+        return;
+    }
+    const childOptions = state.children.map(c => ({ value: String(c.id), label: c.name }));
+
+    openModal("Record M-Pesa Payment",
+        '<label>M-Pesa Message</label>' +
+        '<textarea data-field="mpesaText" rows="4" placeholder="Paste the M-Pesa confirmation SMS here, e.g.: XH12AB34 Confirmed. You have received Ksh1,500.00 from MARY WANJIKU 254712345678 on 23/9/26 ..."></textarea>' +
+        '<button type="button" class="secondary-btn" id="mpesa-parse-btn" style="width:100%;margin-top:10px">🔍 Read Message</button>' +
+        '<div id="mpesa-match-result" class="field-hint" style="margin-top:10px;font-size:12px"></div>' +
+        '<label style="margin-top:16px">Child</label>' +
+        '<select data-field="childId">' +
+            childOptions.map(o => '<option value="' + o.value + '">' + escapeHTML(o.label) + '</option>').join("") +
+        '</select>' +
+        fieldHTML("amount", "Amount (KSh)", "number", "", ' min="1" required') +
+        fieldHTML("method", "Method", "select", "M-Pesa", ["M-Pesa", "Cash", "Bank", "Other"]),
+        data => {
+            const amount = Number(data.amount);
+            const childId = Number(data.childId);
+            const child = state.children.find(c => c.id === childId);
+            if (!child || !amount || amount <= 0 || isNaN(amount)) {
+                alert("Please pick a child and enter a valid amount.");
+                return false;
+            }
+            state.payments.push({
+                id: Date.now(),
+                childId: childId,
+                childName: child.name,
+                amount: amount,
+                method: data.method || "M-Pesa",
+                date: new Date().toISOString()
+            });
+            saveState();
+            renderAll();
+            alert("Payment of " + formatKES(amount) + " recorded for " + child.name + ".");
+        }, "Record Payment");
+
+    $("#mpesa-parse-btn").addEventListener("click", () => {
+        const text = $('[data-field="mpesaText"]').value;
+        const resultEl = $("#mpesa-match-result");
+        if (!text.trim()) {
+            resultEl.textContent = "Paste the message first, then tap Read Message.";
+            return;
+        }
+        const parsed = parseMpesaMessage(text);
+        if (!parsed.amount) {
+            resultEl.textContent = "Could not find an amount in that message. Please check the paste.";
+            return;
+        }
+        $('[data-field="amount"]').value = parsed.amount;
+
+        const child = parsed.phone ? findChildByPhone(parsed.phone) : null;
+        if (child) {
+            $('[data-field="childId"]').value = String(child.id);
+            resultEl.textContent = "✓ Matched to " + child.name + " (KSh " + parsed.amount.toLocaleString() + ")" +
+                (parsed.name ? " — sender: " + parsed.name : "");
+        } else {
+            resultEl.textContent = "✓ Amount found: KSh " + parsed.amount.toLocaleString() +
+                (parsed.phone ? ", but no child matches phone " + parsed.phone + " — pick the child manually." : "");
+        }
+    });
+}
+
+$("#mpesa-pay-btn").addEventListener("click", openMpesaPayment);
+
+/* =========================================================
    REPORTS
 ========================================================= */
 
