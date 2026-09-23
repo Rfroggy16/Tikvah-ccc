@@ -816,12 +816,27 @@ $("#end-day-btn").addEventListener("click", () => {
 
 function parseMpesaMessage(text) {
     const result = { amount: null, phone: null, name: null };
-    const amt = text.match(/Ksh\s?([\d,]+(?:\.\d{1,2})?)/i);
+
+    // Amount: prefer "Ksh1,500.00" style; fall back to amount right after "received/paid"
+    const amt = text.match(/Ksh\s?([\d,]+(?:\.\d{1,2})?)/i) ||
+                text.match(/(?:received|paid|sent)\s+(?:Ksh\s?)?([\d,]+(?:\.\d{1,2})?)/i);
     if (amt) result.amount = parseFloat(amt[1].replace(/,/g, ""));
-    const ph = text.match(/(?:^|\D)(2547\d{8}|07\d{8})(?:\D|$)/);
-    if (ph) result.phone = ph[1];
-    const nm = text.match(/from\s+([A-Za-z][A-Za-z .']*?)\s+(?:2547\d{8}|07\d{8})/i);
+
+    // Phone: try contiguous numbers first, then join digit groups split by
+    // spaces/dots/hyphens (handles "+254 712 345 678" and "2547-123-45678")
+    let tokens = text.replace(/[^\d]+/g, " ").trim().split(" ");
+    let phone = tokens.find(t => /^(?:254)?0?7\d{8}$/.test(t));
+    if (!phone) {
+        const joined = text.replace(/(\d)[\s.\-]+(?=\d)/g, "$1");
+        tokens = joined.replace(/[^\d]+/g, " ").trim().split(" ");
+        phone = tokens.find(t => /^(?:254)?0?7\d{8}$/.test(t));
+    }
+    if (phone) result.phone = phone;
+
+    // Sender name: the words right after "from" (stops automatically at digits)
+    const nm = text.match(/from\s+([A-Za-z][A-Za-z .']{2,40})/i);
     if (nm) result.name = nm[1].trim();
+
     return result;
 }
 
