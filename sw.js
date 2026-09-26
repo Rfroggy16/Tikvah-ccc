@@ -1,6 +1,6 @@
 /* Tikvah service worker - makes the app installable + offline-ready */
 
-const CACHE_NAME = "tikvah-v5";
+const CACHE_NAME = "tikvah-v6";
 const CORE_ASSETS = [
   "./",
   "./index.html",
