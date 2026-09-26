@@ -11,13 +11,52 @@ const STORAGE_KEY = "tikvah_v3_data";
    STATE
 ========================================================= */
 
+/* Simple hash so passwords are not stored in plain text.
+   NOTE: this protects against casual snooping, not determined attackers. */
+function hashPassword(text) {
+    let hash = 5381;
+    const s = "tikvah::" + text;
+    for (let i = 0; i < s.length; i++) {
+        hash = ((hash << 5) + hash + s.charCodeAt(i)) >>> 0;
+    }
+    return hash.toString(36);
+}
+
+const ROLE_LABELS = {
+    admin: "Administrator",
+    technician: "Technician",
+    employee: "Employee"
+};
+
+function defaultUsers() {
+    return [
+        { username: "admin", passwordHash: hashPassword("admin123"), role: "admin" },
+        { username: "employee", passwordHash: hashPassword("employee123"), role: "employee" },
+        { username: "tech", passwordHash: hashPassword("tech123"), role: "technician" }
+    ];
+}
+
+/* Make sure all three accounts exist (adds missing ones without touching changed passwords) */
+function ensureUsers() {
+    if (!Array.isArray(state.users)) state.users = [];
+    let changed = false;
+    defaultUsers().forEach(def => {
+        if (!state.users.some(u => u.username === def.username)) {
+            state.users.push(def);
+            changed = true;
+        }
+    });
+    if (changed) saveState();
+}
+
 function defaultState() {
     return {
         children: [],
         payments: [],
         attendance: [],
         charges: [],
-        settings: { dailyFee: 100, weeklyFee: 700, monthlyFee: 3000 }
+        settings: { dailyFee: 100, weeklyFee: 700, monthlyFee: 3000 },
+        users: defaultUsers()
     };
 }
 
@@ -32,7 +71,8 @@ function loadState() {
                 payments: parsed.payments || [],
                 attendance: parsed.attendance || [],
                 charges: parsed.charges || [],
-                settings: Object.assign(base.settings, parsed.settings || {})
+                settings: Object.assign(base.settings, parsed.settings || {}),
+                users: Array.isArray(parsed.users) ? parsed.users : defaultUsers()
             };
         }
     } catch (err) {
@@ -212,6 +252,7 @@ const PAGE_TITLES = {
 };
 
 function showPage(name) {
+    if (name === "settings" && isEmployee()) name = "dashboard";
     document.querySelectorAll("[data-page-section]").forEach(section => {
         section.style.display =
             section.getAttribute("data-page-section") === name ? "" : "none";
@@ -304,26 +345,64 @@ function fieldHTML(key, label, type, value, extra) {
    AUTH
 ========================================================= */
 
+function currentUser() {
+    try {
+        return JSON.parse(sessionStorage.getItem("tikvah_session"));
+    } catch (err) {
+        return null;
+    }
+}
+
+function isEmployee() {
+    const u = currentUser();
+    return !!u && u.role === "employee";
+}
+
+function hasFullAccess() {
+    const u = currentUser();
+    return !!u && (u.role === "admin" || u.role === "technician");
+}
+
 $("#login-form").addEventListener("submit", e => {
     e.preventDefault();
-    if (!$("#login-username").value.trim() || !$("#login-password").value.trim()) {
+    const username = $("#login-username").value.trim().toLowerCase();
+    const password = $("#login-password").value;
+    if (!username || !password) {
         alert("Please enter your username and password.");
         return;
     }
-    sessionStorage.setItem("tikvah_logged_in", "yes");
+    const user = (state.users || []).find(u =>
+        u.username === username && u.passwordHash === hashPassword(password));
+    if (!user) {
+        alert("Invalid username or password.");
+        return;
+    }
+    sessionStorage.setItem("tikvah_session",
+        JSON.stringify({ username: user.username, role: user.role }));
     enterApp();
 });
+
+function applyRoleUI() {
+    const user = currentUser();
+    if (user) {
+        $("#sidebar-username").textContent = user.username;
+        $("#sidebar-role").textContent = ROLE_LABELS[user.role] || user.role;
+    }
+    const settingsNav = document.querySelector('.nav-item[data-page="settings"]');
+    if (settingsNav) settingsNav.style.display = isEmployee() ? "none" : "";
+}
 
 function enterApp() {
     $("#login-page").style.display = "none";
     $("#app").style.display = "flex";
+    applyRoleUI();
     renderAll();
     showPage("dashboard");
 }
 
 $("#logout-btn").addEventListener("click", () => {
     if (!confirm("Log out of the admin system?")) return;
-    sessionStorage.removeItem("tikvah_logged_in");
+    sessionStorage.removeItem("tikvah_session");
     location.reload();
 });
 
@@ -541,8 +620,9 @@ function renderProfile() {
                     </button>
                     <button class="secondary-btn" id="profile-pay">💳 Record Payment</button>
                     <button class="secondary-btn" id="profile-charge">➕ Add Extra Charge</button>
+                    ${isEmployee() ? "" : `
                     <button class="secondary-btn" id="profile-edit">✏️ Edit Details</button>
-                    <button class="danger-btn" id="profile-delete">🗑️ Delete Child</button>
+                    <button class="danger-btn" id="profile-delete">🗑️ Delete Child</button>`}
                 </div>
             </div>
             <div>
@@ -576,8 +656,10 @@ function renderProfile() {
     $("#profile-toggle").addEventListener("click", () => toggleAttendance(child.id));
     $("#profile-pay").addEventListener("click", () => recordPayment(child.id));
     $("#profile-charge").addEventListener("click", () => addCharge(child.id));
-    $("#profile-edit").addEventListener("click", () => editChild(child.id));
-    $("#profile-delete").addEventListener("click", () => deleteChild(child.id));
+    if (!isEmployee()) {
+        $("#profile-edit").addEventListener("click", () => editChild(child.id));
+        $("#profile-delete").addEventListener("click", () => deleteChild(child.id));
+    }
 
     renderHistory(child.id);
 }
@@ -1007,7 +1089,46 @@ function renderSettings() {
     $("#daily-fee-input").value = state.settings.dailyFee;
     $("#weekly-fee-input").value = state.settings.weeklyFee;
     $("#monthly-fee-input").value = state.settings.monthlyFee;
+    renderUsersCard();
 }
+
+function renderUsersCard() {
+    const list = $("#users-list");
+    if (!list) return;
+    list.innerHTML = '<div class="activity-list">' + state.users.map(u => `
+        <div class="activity-row">
+            <span class="log-name">${escapeHTML(u.username)}</span>
+            <span class="log-badge in" style="background:#eef0ff;color:#4f46e5">${ROLE_LABELS[u.role] || escapeHTML(u.role)}</span>
+        </div>`).join("") + "</div>";
+
+    const me = currentUser();
+    const options = hasFullAccess()
+        ? state.users
+        : state.users.filter(u => me && u.username === me.username);
+    $("#password-user-select").innerHTML = options.map(u =>
+        '<option value="' + escapeHTML(u.username) + '">' +
+        escapeHTML(u.username) + " (" + (ROLE_LABELS[u.role] || u.role) + ")</option>"
+    ).join("");
+}
+
+$("#change-password-btn").addEventListener("click", () => {
+    const target = $("#password-user-select").value;
+    const pw = $("#new-password-input").value;
+    if (!target || !pw) {
+        alert("Pick a user and enter a new password.");
+        return;
+    }
+    if (pw.length < 4) {
+        alert("Password must be at least 4 characters.");
+        return;
+    }
+    const user = state.users.find(u => u.username === target);
+    if (!user) return;
+    user.passwordHash = hashPassword(pw);
+    saveState();
+    $("#new-password-input").value = "";
+    alert("Password updated for " + target + ".");
+});
 
 $("#save-fee-btn").addEventListener("click", () => {
     const daily = Number($("#daily-fee-input").value);
@@ -1096,8 +1217,9 @@ function renderAll() {
 
 document.addEventListener("DOMContentLoaded", () => {
     migrateOldData();
+    ensureUsers();
     $("#year").textContent = new Date().getFullYear();
-    if (sessionStorage.getItem("tikvah_logged_in") === "yes") {
+    if (sessionStorage.getItem("tikvah_session")) {
         enterApp();
     }
 });

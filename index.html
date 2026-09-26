@@ -31,7 +31,7 @@
                 <input type="password" id="login-password" placeholder="Enter password" autocomplete="current-password">
                 <button type="submit" class="primary-btn">Login</button>
             </form>
-            <p class="login-hint">Enter any username and password to continue.</p>
+            <p class="login-hint">Staff log in with your assigned account.<br>Forgot the password? Ask the Admin or Technician.</p>
         </div>
     </section>
 
@@ -53,8 +53,8 @@
                 <button class="nav-item" data-page="settings"><span>⚙️</span>Settings</button>
             </nav>
             <div class="sidebar-bottom">
-                <p>Admin</p>
-                <span>Administrator</span>
+                <p id="sidebar-username">Admin</p>
+                <span id="sidebar-role">Administrator</span>
                 <button id="logout-btn" class="logout-btn">🚪 Logout</button>
             </div>
         </aside>
@@ -197,6 +197,16 @@
                             <p class="settings-desc">Download all children, payments and attendance records as a file. Keep it safe!</p>
                             <button class="secondary-btn" id="export-btn">⬇️ Download Backup</button>
                             <label class="secondary-btn file-label">⬆️ Restore Backup<input type="file" id="import-input" accept=".json" hidden></label>
+                        </div>
+                        <div class="settings-card">
+                            <h3>Users &amp; Passwords</h3>
+                            <p class="settings-desc">Who can log in. Employees can do daily tasks but cannot change settings, edit or delete children.</p>
+                            <div id="users-list"></div>
+                            <label class="fee-label">Change password for</label>
+                            <select id="password-user-select"></select>
+                            <label class="fee-label">New password</label>
+                            <div class="settings-row"><input type="password" id="new-password-input" placeholder="At least 4 characters"></div>
+                            <div class="settings-row" style="margin-top:12px"><button class="primary-btn" id="change-password-btn" style="width:100%">Update Password</button></div>
                         </div>
                         <div class="settings-card danger">
                             <h3>Danger Zone</h3>

@@ -660,3 +660,14 @@ footer { text-align: center; color: #888; font-size: 12px; padding: 30px; }
     resize: vertical;
 }
 .modal-body textarea:focus { border-color: #4f46e5; }
+
+.settings-grid { grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
+.settings-card select {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1px solid #ddd;
+    border-radius: 9px;
+    background: white;
+    outline: none;
+}
+#users-list { margin-bottom: 16px; }
